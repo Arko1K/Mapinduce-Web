@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="en">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <title>Mapsnap</title>
+
+    <style>
+        html, body, #map-canvas {
+            height: 100%;
+            margin: 0px;
+            padding: 0px;
+        }
+    </style>
+
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true&libraries=drawing,geometry"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src=“/js/jsts.js” type=“text/javascript”></script>
+
+    <script>
+        var googleMaps2JTS = function(boundaries) {
+          var coordinates = [];
+          for (var i = 0; i < boundaries.getLength(); i++) {
+            coordinates.push(new jsts.geom.Coordinate(
+                boundaries.getAt(i).lat(), boundaries.getAt(i).lng()));
+          }
+          return coordinates;
+        };
+
+        var findSelfIntersects = function(googlePolygonPath) {
+          var coordinates = googleMaps2JTS(googlePolygonPath);
+          var geometryFactory = new jsts.geom.GeometryFactory();
+          var shell = geometryFactory.createLinearRing(coordinates);
+          var jstsPolygon = geometryFactory.createPolygon(shell);
+
+          // if the geometry is aleady a simple linear ring, do not
+          // try to find self intersection points.
+          var validator = new jsts.operation.IsSimpleOp(jstsPolygon);
+          if (validator.isSimpleLinearGeometry(jstsPolygon)) {
+            return;
+          }
+
+          var res = [];
+          var graph = new jsts.geomgraph.GeometryGraph(0, jstsPolygon);
+          var cat = new jsts.operation.valid.ConsistentAreaTester(graph);
+          var r = cat.isNodeConsistentArea();
+          if (!r) {
+            var pt = cat.getInvalidPoint();
+            res.push([pt.x, pt.y]);
+          }
+          return res;
+        };
+
+        function initialize() {
+            var map = new google.maps.Map(document.getElementById('map-canvas'));
+            var center = new google.maps.LatLng({{lat}}, {{lng}});
+            var polygonId = '{{id}}';
+            var polygon;
+            var polyCoordsBuffer = [];
+            var start = false;
+
+            if(self !== top) {
+                // Being rendered inside Google Maps.
+
+                var styles = [
+                  {
+                    "featureType": "poi",
+                    "stylers": [
+                      { "visibility": "off" }
+                    ]
+                  }
+                ];
+
+                map.setOptions({
+                    draggable: false,
+                    zoomControl: false,
+                    scrollwheel: false,
+                    disableDoubleClickZoom: true,
+                    draggableCursor: 'crosshair',
+                    styles: styles
+                });
+            }
+
+            function drawPolygon(polyObj) {
+                if(polygon)
+                    polygon.setMap(null);
+                var polyPoints = [];
+                for (var i = 0; i < polyObj.length; i++) {
+                    polyPoints[i] = new google.maps.LatLng(polyObj[i][1], polyObj[i][0]);
+                }
+                polyOptions = {
+                        paths: polyPoints,
+                        fillColor: '#1ab2ff',
+                        fillOpacity: 0.5,
+                        strokeColor: '#52a5Ca',
+                        strokeWeight: 2,
+                        strokeOpacity: 1,
+                        clickable: false,
+                        editable: false,
+                        zIndex: 1
+                    };
+                polygon = new google.maps.Polygon(polyOptions);
+                polygon.setMap(map);
+                map.setCenter(center);
+                map.setZoom({{zoom}});
+            }
+
+            drawPolygon(JSON.parse('[[77.6161131, 12.943717], [77.61584100000005, 12.943655], [77.61590690000003, 12.9417679], [77.6142304, 12.9426552]]'));
+
+{#            $(document).on('keypress', function(event) {#}
+{#                event.stopPropagation();#}
+{#                $.ajax({#}
+{#                    type: "PUT",#}
+{#                    url: "put",#}
+{#                    data: {'id': polygonId, 'coords': JSON.stringify(polyCoordsBuffer)},#}
+{#                    success: function (res) {#}
+{#                        alert('Coord count: ' + polyCoordsBuffer.length + '. Click count: ' + count);#}
+{#                        start = true;#}
+{#                    }#}
+{#                });#}
+{#            });#}
+
+{#            $(document).on('mousedown', function(event) {#}
+{#                count++;#}
+{#            });#}
+
+{#            var count = 0;#}
+{#            google.maps.event.addListener(map, 'click', function(event) {#}
+{#                if(start) {#}
+{#                    start = false;#}
+{#                    polyCoordsBuffer = [];#}
+{#                    count = 0;#}
+{#                }#}
+{#                var lng = event.latLng.lng();#}
+{#                var lat = event.latLng.lat();#}
+{#                // event.stop();#}
+{#                polyCoordsBuffer.push([lng, lat]);#}
+{#            });#}
+{##}
+{#            google.maps.event.addListener(map, 'rightclick', function(event) {#}
+{#                var lng = event.latLng.lng();#}
+{#                var lat = event.latLng.lat();#}
+{#                // event.stop();#}
+{#                polyCoordsBuffer.push([lng, lat]);#}
+{#            });#}
+
+{#            var marker1 = new google.maps.Marker({#}
+{#                map: map#}
+{#            });#}
+{##}
+{#            var i = 0;#}
+{##}
+{#            function updateMarker() {#}
+{#                setTimeout(function() {#}
+{#                    if(i < data.length) {#}
+{#                        var p = data[i];#}
+{#                        var lat = p[1];#}
+{#                        var lng = p[0];#}
+{#                        marker1.setPosition(new google.maps.LatLng(lat, lng));#}
+{#                        i++;#}
+{#                        updateMarker();#}
+{#                    }#}
+{#                }, 500);#}
+{#            }#}
+{##}
+{#            updateMarker();#}
+
+            var marker = new google.maps.Marker({
+                position: new google.maps.LatLng(12.937222, 77.6269699),
+                map: map,
+                title: 'Hello World!'
+            });
+        }
+
+        google.maps.event.addDomListener(window, 'load', initialize);
+    </script>
+</head>
+
+<body>
+    <div id="map-canvas"></div>
+</body>
+
+</html>
